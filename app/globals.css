@@ -1,0 +1,194 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --surface-container: #e5eeff;
+  --on-secondary-fixed-variant: #3f465c;
+  --inverse-primary: #c3c0ff;
+  --inverse-on-surface: #eaf1ff;
+  --on-tertiary-fixed: #07006c;
+  --surface: #f8f9ff;
+  --on-primary: #ffffff;
+  --surface-container-high: #dce9ff;
+  --secondary-fixed-dim: #bec6e0;
+  --tertiary-container: #4b4dd8;
+  --secondary: #565e74;
+  --on-secondary-fixed: #131b2e;
+  --on-tertiary-container: #d9d8ff;
+  --surface-container-low: #eff4ff;
+  --on-secondary-container: #5c647a;
+  --primary-fixed: #e2dfff;
+  --outline-variant: #c7c4d8;
+  --tertiary-fixed-dim: #c0c1ff;
+  --surface-dim: #cbdbf5;
+  --surface-tint: #4d44e3;
+  --on-surface: #0b1c30;
+  --on-background: #0b1c30;
+  --primary: #3525cd;
+  --surface-container-lowest: #ffffff;
+  --surface-container-highest: #d3e4fe;
+  --tertiary: #3130c0;
+  --surface-variant: #d3e4fe;
+  --on-tertiary-fixed-variant: #2f2ebe;
+  --on-error: #ffffff;
+  --primary-fixed-dim: #c3c0ff;
+  --on-primary-fixed-variant: #3323cc;
+  --on-primary-fixed: #0f0069;
+  --inverse-surface: #213145;
+  --primary-container: #4f46e5;
+  --secondary-fixed: #dae2fd;
+  --on-surface-variant: #464555;
+  --tertiary-fixed: #e1e0ff;
+  --on-error-container: #93000a;
+  --on-secondary: #ffffff;
+  --background: #f8f9ff;
+  --secondary-container: #dae2fd;
+  --on-primary-container: #dad7ff;
+  --error: #ba1a1a;
+  --surface-bright: #f8f9ff;
+  --on-tertiary: #ffffff;
+  --error-container: #ffdad6;
+  --outline: #777587;
+}
+
+/* Premium Slate-and-Indigo Dark Mode Theme overrides */
+.dark {
+  --background: #0b0f19;
+  --on-background: #f1f5f9;
+  --surface: #111827;
+  --on-surface: #f1f5f9;
+  --surface-container: #1f2937;
+  --surface-container-low: #111827;
+  --surface-container-lowest: #0b0f19;
+  --surface-container-high: #374151;
+  --surface-container-highest: #4b5563;
+  --surface-variant: #1e293b;
+  --on-surface-variant: #94a3b8;
+  --outline: #334155;
+  --outline-variant: #1e293b;
+  
+  --primary: #6366f1;
+  --on-primary: #ffffff;
+  --primary-container: #4f46e5;
+  --on-primary-container: #e0e7ff;
+  --primary-fixed: #1e1b4b;
+  --on-primary-fixed-variant: #c7d2fe;
+  
+  --surface-bright: #1f2937;
+  --surface-dim: #0f172a;
+  --inverse-surface: #f8f9ff;
+  --inverse-on-surface: #0b1c30;
+  
+  --secondary: #94a3b8;
+  --on-secondary: #0f172a;
+  --secondary-container: #1e293b;
+  --on-secondary-container: #cbd5e1;
+
+  --tertiary: #818cf8;
+  --tertiary-container: #3730a3;
+  --on-tertiary-container: #e0e7ff;
+}
+
+@theme {
+  --color-surface-container: var(--surface-container);
+  --color-on-secondary-fixed-variant: var(--on-secondary-fixed-variant);
+  --color-inverse-primary: var(--inverse-primary);
+  --color-inverse-on-surface: var(--inverse-on-surface);
+  --color-on-tertiary-fixed: var(--on-tertiary-fixed);
+  --color-surface: var(--surface);
+  --color-on-primary: var(--on-primary);
+  --color-surface-container-high: var(--surface-container-high);
+  --color-secondary-fixed-dim: var(--secondary-fixed-dim);
+  --color-tertiary-container: var(--tertiary-container);
+  --color-secondary: var(--secondary);
+  --color-on-secondary-fixed: var(--on-secondary-fixed);
+  --color-on-tertiary-container: var(--on-tertiary-container);
+  --color-surface-container-low: var(--surface-container-low);
+  --color-on-secondary-container: var(--on-secondary-container);
+  --color-primary-fixed: var(--primary-fixed);
+  --color-outline-variant: var(--outline-variant);
+  --color-tertiary-fixed-dim: var(--tertiary-fixed-dim);
+  --color-surface-dim: var(--surface-dim);
+  --color-surface-tint: var(--surface-tint);
+  --color-on-surface: var(--on-surface);
+  --color-on-background: var(--on-background);
+  --color-primary: var(--primary);
+  --color-surface-container-lowest: var(--surface-container-lowest);
+  --color-surface-container-highest: var(--surface-container-highest);
+  --color-tertiary: var(--tertiary);
+  --color-surface-variant: var(--surface-variant);
+  --color-on-tertiary-fixed-variant: var(--on-tertiary-fixed-variant);
+  --color-on-error: var(--on-error);
+  --color-primary-fixed-dim: var(--primary-fixed-dim);
+  --color-on-primary-fixed-variant: var(--on-primary-fixed-variant);
+  --color-on-primary-fixed: var(--on-primary-fixed);
+  --color-inverse-surface: var(--inverse-surface);
+  --color-primary-container: var(--primary-container);
+  --color-secondary-fixed: var(--secondary-fixed);
+  --color-on-surface-variant: var(--on-surface-variant);
+  --color-tertiary-fixed: var(--tertiary-fixed);
+  --color-on-error-container: var(--on-error-container);
+  --color-on-secondary: var(--on-secondary);
+  --color-background: var(--background);
+  --color-secondary-container: var(--secondary-container);
+  --color-on-primary-container: var(--on-primary-container);
+  --color-error: var(--error);
+  --color-surface-bright: var(--surface-bright);
+  --color-on-tertiary: var(--on-tertiary);
+  --color-error-container: var(--error-container);
+  --color-outline: var(--outline);
+
+  --font-geist: "Geist", sans-serif;
+
+  --spacing-xs: 4px;
+  --spacing-lg: 24px;
+  --spacing-base: 4px;
+  --spacing-gutter: 24px;
+  --spacing-margin-mobile: 16px;
+  --spacing-container-max: 1280px;
+  --spacing-md: 16px;
+  --spacing-sm: 8px;
+  --spacing-xl: 32px;
+  --spacing-2xl: 48px;
+
+  --radius-DEFAULT: 0.125rem;
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.5rem;
+  --radius-full: 0.75rem;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--on-background);
+  font-family: var(--font-geist);
+}
+
+/* Custom premium shadows and utilities */
+.inner-shadow-subtle {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.table-row-hover:hover {
+  background-color: var(--surface-container-low);
+}
+
+/* Slide Out Panel Animation */
+.slide-panel {
+  transform: translateX(100%);
+  transition: transform 0.3s ease-in-out;
+}
+.slide-panel.open {
+  transform: translateX(0);
+}
+
+/* Modal Overlay Animation */
+.modal-overlay {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease-in-out;
+}
+.modal-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
