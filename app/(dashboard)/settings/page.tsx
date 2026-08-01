@@ -96,7 +96,7 @@ export default function SettingsPage() {
       <div className="mt-md">
         {/* Tab 1: General */}
         {activeTab === "general" && (
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg md:p-xl max-w-3xl shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-lg md:p-xl w-full shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
             <h2 className="font-h3 text-h3 text-on-surface mb-md font-semibold text-lg">
               Company Profile
             </h2>
@@ -132,7 +132,7 @@ export default function SettingsPage() {
                   Employer Phone Number
                 </label>
                 <input
-                  className="w-full border border-outline-variant rounded p-sm bg-transparent text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all max-w-sm"
+                  className="w-full border border-outline-variant rounded p-sm bg-transparent text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
                   type="tel"
                   required
                   value={phone}

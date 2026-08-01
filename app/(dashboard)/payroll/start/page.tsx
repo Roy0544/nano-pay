@@ -52,7 +52,7 @@ export default function StartPayrollPage() {
 
   return (
     <main className="flex-1 p-margin-mobile md:p-xl flex justify-center items-start pt-2xl py-8">
-      <div className="w-full max-w-2xl bg-surface-container-lowest border border-outline-variant rounded-xl p-xl shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+      <div className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl p-xl shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
         <div className="mb-xl text-center">
           <h1 className="font-h2 text-h2 text-on-surface mb-2 font-bold text-2xl">
             Start New Payroll Run

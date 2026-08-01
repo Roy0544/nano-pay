@@ -1,15 +1,19 @@
 "use client";
 
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Sun, Moon } from "lucide-react";
+import React, { useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { Lock, Mail, Building2, Eye, EyeOff, AlertCircle, CheckCircle2 } from "lucide-react";
+import { loginAction, signupAction } from "./actions";
 
 interface AuthPageProps {
   defaultTab: "login" | "signup";
 }
 
-export default function AuthPage({ defaultTab }: AuthPageProps) {
-  const router = useRouter();
+function AuthForm({ defaultTab }: AuthPageProps) {
+  const searchParams = useSearchParams();
+  const errorMsg = searchParams.get("error");
+  const infoMsg = searchParams.get("message");
+
   const [activeTab, setActiveTab] = useState<"login" | "signup">(defaultTab);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -18,229 +22,275 @@ export default function AuthPage({ defaultTab }: AuthPageProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (activeTab === "login") {
-      alert(`Welcome back! Logging in as ${email}`);
-    } else {
-      alert(`Account created successfully for ${companyName}!`);
-    }
-    // Redirect to dashboard
-    router.push("/dashboard");
-  };
-
   return (
-    <div
-      className="min-h-screen flex items-center justify-center p-4 md:p-8 font-body-md antialiased text-white"
-      style={{ backgroundColor: "#050b14" }}
-    >
-      <main className="w-full max-w-5xl mx-auto flex rounded-xl overflow-hidden shadow-2xl border border-outline/10 flex-col md:flex-row min-h-[600px] md:h-[80vh] bg-[#0f172a] relative">
-        {/* Left Panel: Pitch */}
-        <section
-          className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-between relative overflow-hidden bg-cover bg-center"
-          style={{
-            backgroundImage: `linear-gradient(to right, rgba(5, 11, 20, 0.95) 1px, transparent 1px),
-                              linear-gradient(to bottom, rgba(5, 11, 20, 0.95) 1px, transparent 1px)`,
-            backgroundSize: "40px 40px",
-          }}
-        >
-          {/* Glow Accents */}
-          <div className="absolute top-0 left-0 w-full h-full pointer-events-none z-0">
-            <div className="absolute top-1/4 left-1/4 w-72 h-72 bg-indigo-500/20 rounded-full blur-[80px]"></div>
-            <div className="absolute bottom-1/4 right-1/4 w-48 h-48 bg-cyan-500/20 rounded-full blur-[60px]"></div>
-          </div>
+    <main className="w-full mx-auto flex rounded-2xl overflow-hidden shadow-2xl border border-slate-800 flex-col md:flex-row min-h-[650px] md:h-[85vh] bg-[#090d16] relative">
+      {/* Background Mesh Gradients */}
+      <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-indigo-500/10 rounded-full blur-[120px]"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-cyan-500/10 rounded-full blur-[120px]"></div>
+      </div>
 
-          {/* Brand */}
-          <div className="flex items-center gap-3 z-10">
+      {/* Left Panel: Brand & Pitch */}
+      <section
+        className="w-full md:w-1/2 p-8 md:p-12 lg:p-16 flex flex-col justify-between relative overflow-hidden bg-cover bg-center border-b md:border-b-0 md:border-r border-slate-800/60 z-10"
+        style={{
+          backgroundImage: `linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                            linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px)`,
+          backgroundSize: "40px 40px",
+        }}
+      >
+        {/* Brand */}
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-indigo-600/15 rounded-lg border border-indigo-500/30">
             <img
               alt="Nanopay"
-              className="h-8 w-8 object-contain bg-[#0f172a]"
+              className="h-6 w-6 object-contain"
               src="https://lh3.googleusercontent.com/aida-public/AB6AXuCvGHe1KVzrBCJLTcQeueHNacDkXtPvJh7dgUxiCV3WTe62IQgzxFDr9XfKmKyXim-dYY7uZ7J6pHt_Xe3UzZ-CU6Qfan_10bdYiUuzhPptDF8GNjAUjIJZUkbh8rPJP-u4fo2ojy9gDhlFxmTOBfZl1BOury03cNZYsSbNHAhrB7XoXsMGDdITVfYaOYWJB0DczbZKLc4s3eQ9AieN8yPBGmFqn2Tpvr9O1rDgtostXMuIBaz3nExJ"
             />
-            <span className="font-headline-lg text-white font-bold tracking-tight text-xl">
-              Nanopay
+          </div>
+          <span className="font-space-grotesk font-bold tracking-tight text-xl text-white">
+            Nanopay
+          </span>
+        </div>
+
+        {/* Pitch Content */}
+        <div className="mt-12 md:mt-0 flex-grow flex flex-col justify-center">
+          <h1 className="font-space-grotesk text-3xl md:text-5xl font-bold tracking-tight text-white leading-tight mb-4">
+            Zero-Click <br />
+            <span className="bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
+              Automated Payroll
             </span>
+          </h1>
+          <p className="font-geist text-slate-400 text-sm md:text-base leading-relaxed mb-8">
+            Disburse bulk bank deposits securely and dispatch salary slips directly to employees via WhatsApp in one clean pipeline.
+          </p>
+
+          {/* Graphical Mockup Preview */}
+          <div className="w-full mx-auto aspect-square rounded-xl overflow-hidden bg-slate-900/60 border border-slate-800 flex items-center justify-center p-6 mt-auto shadow-[0_0_50px_rgba(99,102,241,0.15)] relative group hover:border-slate-700/80 transition-all duration-300">
+            <div
+              className="w-full h-full relative rounded-lg bg-cover bg-center opacity-85 group-hover:scale-105 transition-transform duration-500"
+              style={{
+                backgroundImage:
+                  "url('https://lh3.googleusercontent.com/aida-public/AB6AXuDOTUmRX2gjXd0taDaYsB_aSku7f0SVYVCJXqkDl0Nb8zk13c_wQJcKEYtSFP1jQKg-dJ9jJgsix3z77T_EuDWZeU4Yqrf4iDpEBUbAPlh32i5adhcWNniNgGlFNQeJZjxPepUkNJywT_TypqDXdwuTrqoc-pdkaGwFITISl3R7sVBUG332GJa0r2iEizzjN6eoO4lLvglipgjIcv3bki0lCVU9gv8M_yhdv9Y3SBiMWd2RzRnpPw73eSPhOOZ8ggvOoaCKlgvwMoY')",
+              }}
+            >
+              <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500/20 to-cyan-500/20 mix-blend-overlay"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Right Panel: Login/Signup High-Contrast Form */}
+      <section className="w-full md:w-1/2 p-8 md:p-12 lg:p-16 flex flex-col justify-between relative z-10 bg-[#0c101b]">
+        <div className="w-full flex flex-col h-full justify-between space-y-8">
+          {/* Segmented Control */}
+          <div className="flex self-end bg-slate-900/80 border border-slate-800 rounded-xl p-1">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab("login");
+                window.history.replaceState({}, "", "/login");
+              }}
+              className={`px-5 py-2 rounded-lg font-medium text-xs md:text-sm transition-all cursor-pointer ${
+                activeTab === "login"
+                  ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              Log In
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab("signup");
+                window.history.replaceState({}, "", "/signup");
+              }}
+              className={`px-5 py-2 rounded-lg font-medium text-xs md:text-sm transition-all cursor-pointer ${
+                activeTab === "signup"
+                  ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              Sign Up
+            </button>
           </div>
 
-          {/* Pitch Content */}
-          <div className="z-10 mt-12 md:mt-0 flex-grow flex flex-col justify-center">
-            <h1 className="font-headline-xl text-white mb-4 leading-tight text-3xl font-bold tracking-tight">
-              Automated Payroll <br /> & Disbursements.
-            </h1>
-            <p className="font-body-md text-white/70 max-w-sm mb-8 text-sm md:text-base leading-relaxed">
-              Disburse direct bank deposits, plan runs, and distribute payslips via WhatsApp with one simple click.
+          {/* Form Content */}
+          <div className="flex-grow flex flex-col justify-center">
+            <h2 className="font-space-grotesk text-2xl md:text-3xl font-bold text-white mb-2">
+              {activeTab === "login" ? "Welcome Back!" : "Register Company"}
+            </h2>
+            <p className="font-geist text-slate-400 text-xs md:text-sm mb-6">
+              {activeTab === "login"
+                ? "Enter your credentials to access your dashboard"
+                : "Create an account to begin automating your payouts"}
             </p>
 
-            {/* Neon Illustration Container */}
-            <div className="w-full max-w-xs mx-auto aspect-square rounded-xl overflow-hidden bg-white/5 border border-white/10 flex items-center justify-center p-6 mt-auto shadow-[0_0_40px_rgba(99,102,241,0.1)]">
-              <div
-                className="w-full h-full relative rounded-lg bg-cover bg-center"
-                style={{
-                  backgroundImage:
-                    "url('https://lh3.googleusercontent.com/aida-public/AB6AXuDOTUmRX2gjXd0taDaYsB_aSku7f0SVYVCJXqkDl0Nb8zk13c_wQJcKEYtSFP1jQKg-dJ9jJgsix3z77T_EuDWZeU4Yqrf4iDpEBUbAPlh32i5adhcWNniNgGlFNQeJZjxPepUkNJywT_TypqDXdwuTrqoc-pdkaGwFITISl3R7sVBUG332GJa0r2iEizzjN6eoO4lLvglipgjIcv3bki0lCVU9gv8M_yhdv9Y3SBiMWd2RzRnpPw73eSPhOOZ8ggvOoaCKlgvwMoY')",
-                }}
-              >
-                <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500/10 to-cyan-500/10 mix-blend-overlay"></div>
+            {/* Error Message banner */}
+            {errorMsg && (
+              <div className="mb-6 bg-red-500/10 border border-red-500/20 text-red-400 text-xs md:text-sm px-4 py-3 rounded-xl flex items-center gap-sm">
+                <AlertCircle size={18} className="shrink-0" />
+                <span>{decodeURIComponent(errorMsg)}</span>
               </div>
-            </div>
-          </div>
-        </section>
+            )}
 
-        {/* Right Panel: Forms */}
-        <section className="w-full md:w-1/2 bg-[#f8f9ff] text-[#0b1c30] p-8 md:p-12 flex flex-col justify-between relative z-20 rounded-t-3xl md:rounded-l-3xl md:rounded-tr-none shadow-[-10px_0_30px_rgba(0,0,0,0.3)]">
-          <div className="w-full max-w-md mx-auto flex flex-col h-full justify-between">
-            {/* Segmented Control */}
-            <div className="flex self-end bg-[#e5eeff] rounded-lg p-1 mb-8">
-              <button
-                type="button"
-                onClick={() => setActiveTab("login")}
-                className={`px-6 py-2 rounded-md font-medium text-sm transition-all cursor-pointer ${
-                  activeTab === "login"
-                    ? "bg-white text-primary shadow-sm"
-                    : "text-[#5c647a] hover:bg-white/40"
-                }`}
-              >
-                Log In
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("signup")}
-                className={`px-6 py-2 rounded-md font-medium text-sm transition-all cursor-pointer ${
-                  activeTab === "signup"
-                    ? "bg-white text-primary shadow-sm"
-                    : "text-[#5c647a] hover:bg-white/40"
-                }`}
-              >
-                Sign Up
-              </button>
-            </div>
-
-            {/* Form */}
-            <div className="flex-grow flex flex-col justify-center">
-              <h2 className="font-h2 text-h2 text-on-surface mb-6 font-bold text-2xl">
-                {activeTab === "login" ? "Welcome Back!" : "Get Started Today"}
-              </h2>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Company Name (Sign Up only) */}
-                {activeTab === "signup" && (
-                  <div className="space-y-1">
-                    <label className="font-body-sm text-on-surface font-medium text-sm block">
-                      Company Name
-                    </label>
-                    <div className="relative">
-                      <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#777587] text-[20px]">
-                        domain
-                      </span>
-                      <input
-                        className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-[#c7c4d8] bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all font-body-md text-on-surface placeholder:text-[#777587]/60"
-                        placeholder="Acme Corp"
-                        type="text"
-                        required
-                        value={companyName}
-                        onChange={(e) => setCompanyName(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Email Field */}
+            {/* Verification Success Message banner */}
+            {infoMsg && (
+              <div className="mb-6 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs md:text-sm px-4 py-3.5 rounded-xl flex items-start gap-3 shadow-lg">
+                <CheckCircle2 size={20} className="shrink-0 text-emerald-400 mt-0.5" />
                 <div className="space-y-1">
-                  <label className="font-body-sm text-on-surface font-medium text-sm block">
-                    Email Address
+                  <p className="font-semibold text-emerald-200 text-sm">Action Required: Verify Email</p>
+                  <p className="text-emerald-300/90 text-xs leading-relaxed">{decodeURIComponent(infoMsg)}</p>
+                </div>
+              </div>
+            )}
+
+            <form
+              action={activeTab === "login" ? loginAction : signupAction}
+              className="space-y-5"
+            >
+              {/* Company Name (Sign Up only) */}
+              {activeTab === "signup" && (
+                <div className="space-y-2">
+                  <label className="font-geist text-slate-200 font-semibold text-sm block">
+                    Company Name
                   </label>
                   <div className="relative">
-                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#777587] text-[20px]">
-                      person
-                    </span>
+                    <Building2
+                      size={20}
+                      className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 z-10"
+                    />
                     <input
-                      className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-[#c7c4d8] bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all font-body-md text-on-surface placeholder:text-[#777587]/60"
-                      placeholder="admin@acmecorp.com"
-                      type="email"
+                      name="companyName"
+                      className="w-full pl-11 pr-4 py-3 rounded-xl border-2 border-slate-600 bg-white text-slate-900 font-medium placeholder:text-slate-400 text-base focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all shadow-sm"
+                      placeholder="Acme Corp"
+                      type="text"
                       required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
                     />
                   </div>
                 </div>
+              )}
 
-                {/* Password Field */}
-                <div className="space-y-1">
-                  <label className="font-body-sm text-on-surface font-medium text-sm block">
+              {/* Email Field */}
+              <div className="space-y-2">
+                <label className="font-geist text-slate-200 font-semibold text-sm block">
+                  Email Address
+                </label>
+                <div className="relative">
+                  <Mail
+                    size={20}
+                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 z-10"
+                  />
+                  <input
+                    name="email"
+                    className="w-full pl-11 pr-4 py-3 rounded-xl border-2 border-slate-600 bg-white text-slate-900 font-medium placeholder:text-slate-400 text-base focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all shadow-sm"
+                    placeholder="admin@acmecorp.com"
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Password Field */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <label className="font-geist text-slate-200 font-semibold text-sm block">
                     Password
                   </label>
-                  <div className="relative">
-                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#777587] text-[20px]">
-                      lock
-                    </span>
-                    <input
-                      className="w-full pl-10 pr-12 py-2.5 rounded-lg border border-[#c7c4d8] bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all font-body-md text-on-surface placeholder:text-[#777587]/60"
-                      placeholder="••••••••"
-                      type={showPassword ? "text" : "password"}
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                    />
-                    <button
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#777587] hover:text-on-surface transition-colors cursor-pointer"
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      <span className="material-symbols-outlined text-[20px]">
-                        {showPassword ? "visibility_off" : "visibility"}
-                      </span>
-                    </button>
-                  </div>
                   {activeTab === "login" && (
-                    <div className="flex justify-end mt-1">
-                      <a
-                        className="font-body-sm text-[#3525cd] hover:underline text-xs"
-                        href="#"
-                      >
-                        Forgot Password?
-                      </a>
-                    </div>
+                    <a
+                      className="font-geist text-indigo-400 hover:text-indigo-300 text-xs transition-colors"
+                      href="#"
+                    >
+                      Forgot Password?
+                    </a>
                   )}
                 </div>
+                <div className="relative">
+                  <Lock
+                    size={20}
+                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 z-10"
+                  />
+                  <input
+                    name="password"
+                    className="w-full pl-11 pr-12 py-3 rounded-xl border-2 border-slate-600 bg-white text-slate-900 font-medium placeholder:text-slate-400 text-base focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all shadow-sm"
+                    placeholder="••••••••"
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                  <button
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-900 transition-colors cursor-pointer z-10"
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
+              </div>
 
-                {/* Submit Button */}
-                <button
-                  className="w-full bg-primary text-on-primary py-3 rounded-lg font-button hover:opacity-90 transition-opacity shadow-sm mt-4 cursor-pointer font-medium"
-                  type="submit"
-                >
-                  {activeTab === "login" ? "Sign In" : "Create Account"}
-                </button>
-              </form>
-            </div>
-
-            {/* Footer */}
-            <div className="text-center mt-8 pt-6 border-t border-[#c7c4d8]/50">
-              <p className="font-body-sm text-[#5c647a] text-sm">
-                {activeTab === "login" ? (
-                  <>
-                    Don't have an account?{" "}
-                    <button
-                      onClick={() => setActiveTab("signup")}
-                      className="text-primary font-medium hover:underline cursor-pointer"
-                    >
-                      Sign Up
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    Already have an account?{" "}
-                    <button
-                      onClick={() => setActiveTab("login")}
-                      className="text-primary font-medium hover:underline cursor-pointer"
-                    >
-                      Log In
-                    </button>
-                  </>
-                )}
-              </p>
-            </div>
+              {/* Submit Button */}
+              <button
+                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3.5 rounded-xl font-bold shadow-lg shadow-indigo-600/30 hover:shadow-indigo-600/50 transition-all mt-6 cursor-pointer text-base"
+                type="submit"
+              >
+                {activeTab === "login" ? "Sign In" : "Create Account"}
+              </button>
+            </form>
           </div>
-        </section>
-      </main>
+
+          {/* Footer Toggle */}
+          <div className="text-center pt-6 border-t border-slate-900">
+            <p className="font-geist text-slate-400 text-xs md:text-sm">
+              {activeTab === "login" ? (
+                <>
+                  Don't have an account?{" "}
+                  <button
+                    onClick={() => {
+                      setActiveTab("signup");
+                      window.history.replaceState({}, "", "/signup");
+                    }}
+                    className="text-indigo-400 font-semibold hover:text-indigo-300 cursor-pointer ml-1"
+                  >
+                    Sign Up
+                  </button>
+                </>
+              ) : (
+                <>
+                  Already have an account?{" "}
+                  <button
+                    onClick={() => {
+                      setActiveTab("login");
+                      window.history.replaceState({}, "", "/login");
+                    }}
+                    className="text-indigo-400 font-semibold hover:text-indigo-300 cursor-pointer ml-1"
+                  >
+                    Log In
+                  </button>
+                </>
+              )}
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+export default function AuthPage(props: AuthPageProps) {
+  return (
+    <div
+      className="min-h-screen flex items-center justify-center p-4 md:p-8 font-body-md antialiased text-white relative w-full"
+      style={{ backgroundColor: "#020617" }}
+    >
+      <Suspense fallback={<div className="text-slate-400 text-lg">Loading...</div>}>
+        <AuthForm {...props} />
+      </Suspense>
     </div>
   );
 }

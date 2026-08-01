@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Sun, Moon } from "lucide-react";
+import { Sun, Moon, LogOut } from "lucide-react";
+import { signoutAction } from "../auth/actions";
 
 export default function DashboardLayout({
   children,
@@ -95,8 +96,8 @@ export default function DashboardLayout({
         </div>
 
         {/* Bottom Widget */}
-        <div className="mt-auto pt-md border-t border-outline-variant">
-          <div className="bg-surface-container-lowest p-md rounded-lg border border-outline-variant shadow-sm flex flex-col gap-xs mb-4">
+        <div className="mt-auto pt-md border-t border-outline-variant space-y-2">
+          <div className="bg-surface-container-lowest p-md rounded-lg border border-outline-variant shadow-sm flex flex-col gap-xs mb-2">
             <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
               Available Balance
             </span>
@@ -114,6 +115,13 @@ export default function DashboardLayout({
             <span className="material-symbols-outlined">help_outline</span>
             <span className="font-body-md text-body-md">Support</span>
           </Link>
+          <button
+            onClick={() => signoutAction()}
+            className="w-full flex items-center gap-sm px-sm py-sm text-red-500 hover:bg-red-500/10 transition-colors duration-200 rounded-lg cursor-pointer text-left"
+          >
+            <LogOut size={18} />
+            <span className="font-body-md text-body-md font-medium">Log Out</span>
+          </button>
         </div>
       </nav>
 
@@ -179,8 +187,8 @@ export default function DashboardLayout({
           })}
         </div>
 
-        <div className="mt-auto pt-md border-t border-outline-variant">
-          <div className="bg-surface-container-lowest p-md rounded-lg border border-outline-variant shadow-sm flex flex-col gap-xs mb-4">
+        <div className="mt-auto pt-md border-t border-outline-variant space-y-2">
+          <div className="bg-surface-container-lowest p-md rounded-lg border border-outline-variant shadow-sm flex flex-col gap-xs mb-2">
             <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
               Available Balance
             </span>
@@ -198,6 +206,16 @@ export default function DashboardLayout({
             <span className="material-symbols-outlined">help_outline</span>
             <span className="font-body-md text-body-md">Support</span>
           </Link>
+          <button
+            onClick={() => {
+              setMobileMenuOpen(false);
+              signoutAction();
+            }}
+            className="w-full flex items-center gap-sm px-sm py-sm text-red-500 hover:bg-red-500/10 transition-colors duration-200 rounded-lg cursor-pointer text-left font-medium"
+          >
+            <LogOut size={18} />
+            <span className="font-body-md text-body-md">Log Out</span>
+          </button>
         </div>
       </nav>
 
@@ -221,7 +239,10 @@ export default function DashboardLayout({
             <button className="material-symbols-outlined text-on-surface-variant hover:opacity-80 transition-opacity p-2 rounded-full hover:bg-surface-container">
               notifications
             </button>
-            <button className="material-symbols-outlined text-on-surface-variant hover:opacity-80 transition-opacity p-2 rounded-full hover:bg-surface-container">
+            <button
+              className="material-symbols-outlined text-on-surface-variant hover:opacity-80 transition-opacity p-2 rounded-full hover:bg-surface-container"
+              title="User Account"
+            >
               account_circle
             </button>
 
@@ -237,6 +258,16 @@ export default function DashboardLayout({
             ) : (
               <div className="w-9 h-9" />
             )}
+
+            {/* Dedicated Logout Icon Button */}
+            <button
+              onClick={() => signoutAction()}
+              className="text-on-surface-variant hover:text-red-500 hover:bg-red-500/10 transition-colors p-2 rounded-full cursor-pointer flex items-center justify-center"
+              title="Log Out"
+              aria-label="Log Out"
+            >
+              <LogOut size={20} />
+            </button>
 
             <button
               onClick={handleStartPayroll}
