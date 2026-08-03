@@ -4,6 +4,8 @@ import React, { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
+import { processPayrollCSVAction } from "../actions";
+
 export default function StartPayrollPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -12,6 +14,8 @@ export default function StartPayrollPage() {
   const [selectedYear, setSelectedYear] = useState("2026");
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -40,10 +44,29 @@ export default function StartPayrollPage() {
     fileInputRef.current?.click();
   };
 
-  const handleProcessPayroll = () => {
+  const handleProcessPayroll = async () => {
     if (!uploadedFile) return;
-    // Process mock loading, then redirect to review
-    router.push("/payroll/review");
+    setIsProcessing(true);
+    setErrorMessage(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", uploadedFile);
+      formData.append("month", selectedMonth);
+      formData.append("year", selectedYear);
+
+      const res = await processPayrollCSVAction(formData);
+
+      if (res.success && res.payrollRunId) {
+        router.push(`/payroll/review?runId=${res.payrollRunId}`);
+      } else {
+        setErrorMessage(res.error || "Failed to process payroll CSV.");
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || "An unexpected error occurred.");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleCancel = () => {
@@ -153,7 +176,7 @@ export default function StartPayrollPage() {
                 Click to upload or drag and drop
               </h3>
               <p className="font-body-sm text-body-sm text-on-surface-variant mb-6">
-                Supports .xlsx and .csv up to 10MB
+                CSV files only (.csv) up to 10MB
               </p>
               <button
                 type="button"
@@ -166,7 +189,7 @@ export default function StartPayrollPage() {
           <input
             ref={fileInputRef}
             onChange={handleFileChange}
-            accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+            accept=".csv,text/csv"
             className="hidden"
             type="file"
           />
@@ -182,20 +205,34 @@ export default function StartPayrollPage() {
           </Link>
         </div>
 
+        {errorMessage && (
+          <div className="mt-md p-md bg-error-container text-on-error-container rounded-lg text-sm font-medium">
+            ❌ {errorMessage}
+          </div>
+        )}
+
         <div className="mt-2xl flex justify-end gap-md pt-xl border-t border-outline-variant">
           <button
             onClick={handleCancel}
             type="button"
-            className="font-label-md text-label-md text-on-surface border border-outline-variant px-6 py-2 rounded-lg hover:bg-surface-container transition-colors cursor-pointer"
+            disabled={isProcessing}
+            className="font-label-md text-label-md text-on-surface border border-outline-variant px-6 py-2 rounded-lg hover:bg-surface-container transition-colors cursor-pointer disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             onClick={handleProcessPayroll}
-            disabled={!uploadedFile}
-            className="font-label-md text-label-md bg-primary text-on-primary px-6 py-2 rounded-lg hover:opacity-90 transition-opacity shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            disabled={!uploadedFile || isProcessing}
+            className="font-label-md text-label-md bg-primary text-on-primary px-6 py-2 rounded-lg hover:opacity-90 transition-opacity shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer inline-flex items-center gap-2"
           >
-            Process Payroll
+            {isProcessing ? (
+              <>
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                Processing CSV...
+              </>
+            ) : (
+              "Process Payroll"
+            )}
           </button>
         </div>
       </div>
