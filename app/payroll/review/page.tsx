@@ -2,7 +2,11 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getPayrollRunDetailsAction } from "@/app/(dashboard)/payroll/actions";
+import {
+  getPayrollRunDetailsAction,
+  triggerGeneratePdfsAction,
+  getPayslipSignedUrlAction,
+} from "@/app/(dashboard)/payroll/actions";
 
 interface PayrollEmployee {
   id: string;
@@ -26,6 +30,11 @@ function ReviewPayrollContent() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+
+  // PDF Generation State
+  const [isGeneratingPdfs, setIsGeneratingPdfs] = useState(false);
+  const [pdfSuccessMessage, setPdfSuccessMessage] = useState<string | null>(null);
+  const [loadingPdfId, setLoadingPdfId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!runId) {
@@ -87,13 +96,45 @@ function ReviewPayrollContent() {
   const selectedEmployees = employees.filter((e) => selectedIds.includes(e.id));
   const totalPayout = selectedEmployees.reduce((sum, e) => sum + e.netPay, 0);
 
-  const handleDisburse = () => {
-    alert(
-      `Disbursed ₹ ${totalPayout.toLocaleString("en-IN")} to ${
-        selectedEmployees.length
-      } employees successfully! WhatsApp payslips have been dispatched.`
-    );
-    router.push("/payroll");
+  // Trigger Inngest Background PDF Generation & Supabase Private Storage Upload
+  const handleGeneratePdfs = async () => {
+    if (!runId) return;
+    setIsGeneratingPdfs(true);
+    setPdfSuccessMessage(null);
+    setFetchError(null);
+
+    try {
+      const res = await triggerGeneratePdfsAction(runId);
+      if (res.success) {
+        setPdfSuccessMessage(
+          "⚡ PDF generation event sent to Inngest! PDFs are being generated & saved to private Supabase Storage."
+        );
+      } else {
+        setFetchError(res.error || "Failed to trigger PDF generation");
+      }
+    } catch (err: any) {
+      setFetchError(err.message || "An unexpected error occurred");
+    } finally {
+      setIsGeneratingPdfs(false);
+    }
+  };
+
+  // View PDF via 24-hr Signed URL
+  const handleViewPdf = async (payslipId: string) => {
+    if (!runId) return;
+    setLoadingPdfId(payslipId);
+    try {
+      const res = await getPayslipSignedUrlAction(runId, payslipId);
+      if (res.signedUrl) {
+        window.open(res.signedUrl, "_blank");
+      } else {
+        alert(res.error || "PDF not generated yet. Click 'Generate & Save PDFs' first.");
+      }
+    } catch (err: any) {
+      alert("Failed to fetch PDF link: " + err.message);
+    } finally {
+      setLoadingPdfId(null);
+    }
   };
 
   return (
@@ -109,15 +150,49 @@ function ReviewPayrollContent() {
           </span>
           Back to Payrolls
         </button>
-        <div className="flex items-center gap-md">
-          <h1 className="font-h1 text-h1 text-on-surface text-3xl font-bold">
-            {runTitle}
-          </h1>
-          <span className="px-2 py-1 bg-surface-variant text-on-surface-variant font-label-sm text-label-sm rounded-DEFAULT border border-outline-variant">
-            Draft
-          </span>
+        <div className="flex items-center justify-between flex-wrap gap-md">
+          <div className="flex items-center gap-md">
+            <h1 className="font-h1 text-h1 text-on-surface text-3xl font-bold">
+              {runTitle}
+            </h1>
+            <span className="px-2 py-1 bg-surface-variant text-on-surface-variant font-label-sm text-label-sm rounded-DEFAULT border border-outline-variant">
+              Draft
+            </span>
+          </div>
+
+          {/* Generate PDFs Action Button */}
+          <button
+            onClick={handleGeneratePdfs}
+            disabled={isGeneratingPdfs || employees.length === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-secondary-container text-on-secondary-container font-label-md text-label-md rounded-lg hover:opacity-90 transition-opacity border border-outline-variant cursor-pointer disabled:opacity-50"
+          >
+            {isGeneratingPdfs ? (
+              <>
+                <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin inline-block"></span>
+                Starting Inngest...
+              </>
+            ) : (
+              <>
+                <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
+                Generate & Save PDFs (Inngest)
+              </>
+            )}
+          </button>
         </div>
       </div>
+
+      {/* Success Notification Banner */}
+      {pdfSuccessMessage && (
+        <div className="p-md mb-md bg-green-50 border border-green-200 text-green-800 rounded-xl text-sm font-medium flex items-center justify-between">
+          <span>{pdfSuccessMessage}</span>
+          <button
+            onClick={() => setPdfSuccessMessage(null)}
+            className="text-green-600 hover:text-green-900 font-bold ml-4"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Loading State */}
       {isLoading && (
@@ -168,6 +243,9 @@ function ReviewPayrollContent() {
                   <th className="py-md px-md font-label-md text-label-md text-on-surface-variant font-medium text-right">
                     Net Pay (₹)
                   </th>
+                  <th className="py-md px-md font-label-md text-label-md text-on-surface-variant font-medium text-center">
+                    PDF Document
+                  </th>
                   <th className="py-md px-md font-label-md text-label-md text-on-surface-variant font-medium w-32">
                     Status
                   </th>
@@ -176,6 +254,8 @@ function ReviewPayrollContent() {
               <tbody className="divide-y divide-outline-variant">
                 {employees.map((emp) => {
                   const isSelected = selectedIds.includes(emp.id);
+                  const isPdfLoading = loadingPdfId === emp.id;
+
                   return (
                     <tr
                       key={emp.id}
@@ -211,6 +291,25 @@ function ReviewPayrollContent() {
                       <td className="py-md px-md font-body-md text-body-md text-on-surface font-medium text-right">
                         {emp.netPayText}
                       </td>
+
+                      {/* View PDF Column */}
+                      <td className="py-md px-md text-center">
+                        <button
+                          onClick={() => handleViewPdf(emp.id)}
+                          disabled={isPdfLoading}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-surface-container hover:bg-surface-container-high text-on-surface font-label-sm text-label-sm rounded-lg border border-outline-variant transition-colors cursor-pointer"
+                        >
+                          {isPdfLoading ? (
+                            <span className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>
+                          ) : (
+                            <span className="material-symbols-outlined text-[16px] text-primary">
+                              visibility
+                            </span>
+                          )}
+                          View PDF
+                        </button>
+                      </td>
+
                       <td className="py-md px-md">
                         {emp.status === "Ready" ? (
                           <span className="inline-flex items-center gap-1 px-2 py-1 bg-surface-variant text-on-surface-variant font-label-sm text-label-sm rounded-DEFAULT">
@@ -242,12 +341,12 @@ function ReviewPayrollContent() {
           Total Payout: ₹ {totalPayout.toLocaleString("en-IN")}
         </div>
         <button
-          onClick={handleDisburse}
-          disabled={selectedIds.length === 0 || isLoading}
+          onClick={handleGeneratePdfs}
+          disabled={selectedIds.length === 0 || isLoading || isGeneratingPdfs}
           className="flex items-center justify-center gap-sm bg-primary text-on-primary font-label-md text-label-md px-6 py-3 rounded-full hover:bg-primary/90 transition-colors shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)] whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Disburse Funds & Send Payslips
-          <span className="material-symbols-outlined text-[18px]">send</span>
+          Generate & Save PDFs (Inngest)
+          <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
         </button>
       </div>
     </main>

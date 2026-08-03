@@ -556,3 +556,99 @@ export async function getPayrollRunsAction() {
 
   return { error: null, runs };
 }
+
+export async function triggerGeneratePdfsAction(payrollRunId: string) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    return { success: false, error: "Unauthorized access" };
+  }
+
+  // Import inngest client dynamically to avoid module side-effects
+  const { inngest } = await import("@/lib/inngest/client");
+
+  try {
+    console.log(`🚀 [Inngest Trigger] Dispatching 'payroll/generate_pdfs.requested' for runId: ${payrollRunId}`);
+    const sendResult = await inngest.send({
+      name: "payroll/generate_pdfs.requested",
+      data: {
+        runId: payrollRunId,
+        triggeredBy: user.id,
+      },
+    });
+    console.log("✅ [Inngest Trigger] Event sent successfully:", sendResult);
+
+    // Update status to 'Generating PDFs'
+    await supabase
+      .from("payroll_runs")
+      .update({ status: "Generating PDFs" })
+      .eq("id", payrollRunId);
+
+    return {
+      success: true,
+      message: "PDF generation started in background via Inngest!",
+    };
+  } catch (err: any) {
+    console.error("Failed to trigger Inngest event:", err);
+    return { success: false, error: err.message || "Failed to trigger PDF generation" };
+  }
+}
+
+export async function getPayslipSignedUrlAction(payrollRunId: string, payslipId: string) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    return { error: "Unauthorized access", signedUrl: null };
+  }
+
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+  if (!supabaseUrl || !serviceKey) {
+    return { error: "Supabase environment variables missing", signedUrl: null };
+  }
+
+  // Admin client bypasses RLS for storage access
+  const { createClient: createAdminClient } = await import("@supabase/supabase-js");
+  const adminSupabase = createAdminClient(supabaseUrl, serviceKey);
+
+  const filePath = `${payrollRunId}/${payslipId}.pdf`;
+
+  // 1. Verify file exists in bucket first
+  const { data: fileList, error: listError } = await adminSupabase.storage
+    .from("payslips")
+    .list(payrollRunId, { search: `${payslipId}.pdf` });
+
+  const exists = fileList && fileList.some((f) => f.name === `${payslipId}.pdf`);
+
+  if (!exists) {
+    console.log(`⚠️ [Storage Check] File "${filePath}" not found in bucket 'payslips'. (Found: ${fileList?.length || 0} files)`);
+    return {
+      error: "PDF payslip has not been generated yet. Please click 'Generate & Save PDFs (Inngest)' first and wait a few seconds for processing to finish.",
+      signedUrl: null,
+    };
+  }
+
+  // 2. Generate signed URL
+  const { data, error } = await adminSupabase.storage
+    .from("payslips")
+    .createSignedUrl(filePath, 60 * 60 * 24); // 24 hours
+
+  if (error || !data?.signedUrl) {
+    return { error: error?.message || "Failed to generate signed URL for PDF", signedUrl: null };
+  }
+
+  return { error: null, signedUrl: data.signedUrl };
+}
+
+
