@@ -7,6 +7,7 @@ import {
   triggerGeneratePdfsAction,
   getPayslipSignedUrlAction,
   triggerBulkPayoutAction,
+  triggerDispatchSlipsAction,
 } from "@/app/(dashboard)/payroll/actions";
 
 interface PayrollEmployee {
@@ -18,7 +19,8 @@ interface PayrollEmployee {
   daysWorked: string;
   netPay: number;
   netPayText: string;
-  status: "Ready" | "Review Needed" | "Paid";
+  status: "Ready" | "Review Needed" | "PDF Ready" | "Paid" | "Sending" | "Delivered";
+  whatsappStatus?: string | null;
   paymentRef?: string | null;
 }
 
@@ -41,6 +43,10 @@ function ReviewPayrollContent() {
   // Bulk Payout State
   const [isDisbursingPayouts, setIsDisbursingPayouts] = useState(false);
   const [payoutSuccessMessage, setPayoutSuccessMessage] = useState<string | null>(null);
+
+  // PDF Dispatch State
+  const [isDispatchingSlips, setIsDispatchingSlips] = useState(false);
+  const [dispatchSuccessMessage, setDispatchSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!runId) {
@@ -67,9 +73,9 @@ function ReviewPayrollContent() {
         const payslips = (res.payslips || []) as PayrollEmployee[];
         setEmployees(payslips);
 
-        // Pre-select all Ready & unpaid payslips
+        // Pre-select all eligible payslips
         const readyIds = payslips
-          .filter((p) => p.status === "Ready" || p.status === "Paid")
+          .filter((p) => p.status !== "Review Needed")
           .map((p) => p.id);
         setSelectedIds(readyIds);
       } catch (err: any) {
@@ -102,6 +108,31 @@ function ReviewPayrollContent() {
   const selectedEmployees = employees.filter((e) => selectedIds.includes(e.id));
   const totalPayout = selectedEmployees.reduce((sum, e) => sum + e.netPay, 0);
 
+  const arePdfsGenerated =
+    employees.length > 0 &&
+    employees.every(
+      (e) => e.status === "PDF Ready" || e.status === "Paid" || e.status === "Delivered"
+    );
+
+  const allSelectedDelivered =
+    selectedEmployees.length > 0 &&
+    selectedEmployees.every(
+      (e) =>
+        e.status === "Delivered" ||
+        e.whatsappStatus === "delivered" ||
+        e.whatsappStatus === "sent"
+    );
+
+  const isAnyWhatsappPending = selectedEmployees.some(
+    (e) => e.whatsappStatus === "pending" || e.status === "Sending"
+  );
+
+  const allSelectedPaid =
+    selectedEmployees.length > 0 &&
+    selectedEmployees.every((e) => e.status === "Paid" || e.status === "Delivered");
+
+
+
   // Trigger Inngest Background PDF Generation & Supabase Private Storage Upload
   const handleGeneratePdfs = async () => {
     if (!runId) return;
@@ -125,6 +156,21 @@ function ReviewPayrollContent() {
     }
   };
 
+  // Refresh run data helper
+  const refreshData = async () => {
+    if (!runId) return;
+    try {
+      const res = await getPayrollRunDetailsAction(runId);
+      if (res.run) {
+        setRunTitle(`${res.run.month} ${res.run.year} Payroll`);
+      }
+      const payslips = (res.payslips || []) as PayrollEmployee[];
+      setEmployees(payslips);
+    } catch (err) {
+      console.error("Failed to refresh payroll data:", err);
+    }
+  };
+
   // Trigger Inngest Bulk Payment Disbursement
   const handleDisbursePayouts = async () => {
     if (!runId || selectedIds.length === 0) return;
@@ -138,6 +184,10 @@ function ReviewPayrollContent() {
         setPayoutSuccessMessage(
           `⚡ Bulk payment event sent to Inngest! Disbursing ₹${totalPayout.toLocaleString("en-IN")} across ${selectedIds.length} employees.`
         );
+        // Automatically refresh table data after 3 seconds to reflect Paid status & Ref tags
+        setTimeout(() => {
+          refreshData();
+        }, 3000);
       } else {
         setFetchError(res.error || "Failed to trigger bulk payout");
       }
@@ -147,6 +197,34 @@ function ReviewPayrollContent() {
       setIsDisbursingPayouts(false);
     }
   };
+
+  // Trigger Dispatch Salary Slips via WhatsApp / Telegram
+  const handleDispatchSalarySlips = async () => {
+    if (!runId || selectedIds.length === 0) return;
+    setIsDispatchingSlips(true);
+    setDispatchSuccessMessage(null);
+    setFetchError(null);
+
+    try {
+      const res = await triggerDispatchSlipsAction(runId, selectedIds);
+      if (res.success) {
+        setDispatchSuccessMessage(
+          `📲 Salary Slips dispatched! PDF payslips are being sent to ${selectedIds.length} employees via WhatsApp / Telegram.`
+        );
+        setTimeout(() => {
+          refreshData();
+        }, 3000);
+      } else {
+        setFetchError(res.error || "Failed to dispatch salary slips");
+      }
+    } catch (err: any) {
+      setFetchError(err.message || "An unexpected error occurred during slip dispatch");
+    } finally {
+      setIsDispatchingSlips(false);
+    }
+  };
+
+
 
   // View PDF via 24-hr Signed URL
   const handleViewPdf = async (payslipId: string) => {
@@ -194,13 +272,18 @@ function ReviewPayrollContent() {
             {/* Generate PDFs Action Button */}
             <button
               onClick={handleGeneratePdfs}
-              disabled={isGeneratingPdfs || employees.length === 0}
-              className="flex items-center gap-2 px-4 py-2 bg-secondary-container text-on-secondary-container font-label-md text-label-md rounded-lg hover:opacity-90 transition-opacity border border-outline-variant cursor-pointer disabled:opacity-50"
+              disabled={isGeneratingPdfs || employees.length === 0 || arePdfsGenerated}
+              className="flex items-center gap-2 px-4 py-2 bg-secondary-container text-on-secondary-container font-label-md text-label-md rounded-lg hover:opacity-90 transition-opacity border border-outline-variant cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isGeneratingPdfs ? (
                 <>
                   <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin inline-block"></span>
                   Starting Inngest...
+                </>
+              ) : arePdfsGenerated ? (
+                <>
+                  <span className="material-symbols-outlined text-[18px] text-emerald-600">check_circle</span>
+                  PDFs Ready ✓
                 </>
               ) : (
                 <>
@@ -210,24 +293,60 @@ function ReviewPayrollContent() {
               )}
             </button>
 
-            {/* Bulk Payout Action Button */}
-            <button
-              onClick={handleDisbursePayouts}
-              disabled={isDisbursingPayouts || selectedIds.length === 0}
-              className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary font-label-md text-label-md rounded-lg hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
-            >
-              {isDisbursingPayouts ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-on-primary border-t-transparent rounded-full animate-spin inline-block"></span>
-                  Disbursing via Inngest...
-                </>
-              ) : (
-                <>
-                  <span className="material-symbols-outlined text-[18px]">payments</span>
-                  Disburse Payouts ({selectedIds.length})
-                </>
-              )}
-            </button>
+            {/* Dynamic Action Button: Delivered (disabled) OR Pending OR Send Salary Slips OR Disburse Payouts */}
+            {allSelectedDelivered ? (
+              <button
+                disabled
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-800 text-white font-label-md text-label-md rounded-lg shadow-sm font-semibold opacity-90 cursor-not-allowed"
+              >
+                <span className="material-symbols-outlined text-[18px]">done_all</span>
+                Salary Slips Sent ✓
+              </button>
+            ) : isAnyWhatsappPending ? (
+              <button
+                disabled
+                className="flex items-center gap-2 px-4 py-2 bg-amber-700 text-white font-label-md text-label-md rounded-lg shadow-sm font-semibold opacity-90 cursor-not-allowed"
+              >
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block"></span>
+                Delivering Slips...
+              </button>
+            ) : allSelectedPaid ? (
+              <button
+                onClick={handleDispatchSalarySlips}
+                disabled={isDispatchingSlips || selectedIds.length === 0}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-700 text-white font-label-md text-label-md rounded-lg hover:bg-emerald-800 transition-colors shadow-sm cursor-pointer disabled:opacity-50 font-semibold"
+              >
+                {isDispatchingSlips ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block"></span>
+                    Sending Slips...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[18px]">send</span>
+                    Send Salary Slips ({selectedIds.length})
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                onClick={handleDisbursePayouts}
+                disabled={isDisbursingPayouts || selectedIds.length === 0}
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary font-label-md text-label-md rounded-lg hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
+              >
+                {isDisbursingPayouts ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-on-primary border-t-transparent rounded-full animate-spin inline-block"></span>
+                    Disbursing via Inngest...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[18px]">payments</span>
+                    Disburse Payouts ({selectedIds.length})
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -251,6 +370,18 @@ function ReviewPayrollContent() {
           <button
             onClick={() => setPayoutSuccessMessage(null)}
             className="text-emerald-700 hover:text-emerald-950 font-bold ml-4"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {dispatchSuccessMessage && (
+        <div className="p-md mb-md bg-teal-50 border border-teal-200 text-teal-900 rounded-xl text-sm font-medium flex items-center justify-between">
+          <span>{dispatchSuccessMessage}</span>
+          <button
+            onClick={() => setDispatchSuccessMessage(null)}
+            className="text-teal-700 hover:text-teal-950 font-bold ml-4"
           >
             ✕
           </button>
@@ -379,10 +510,25 @@ function ReviewPayrollContent() {
                       </td>
 
                       <td className="py-md px-md">
-                        {emp.status === "Paid" ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-100 text-emerald-800 font-label-sm text-label-sm rounded-DEFAULT font-semibold border border-emerald-300">
+                        {emp.status === "Delivered" ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-100 text-emerald-900 font-label-sm text-label-sm rounded-DEFAULT font-semibold border border-emerald-300">
+                            <span className="material-symbols-outlined text-[14px]">done_all</span>
+                            Delivered
+                          </span>
+                        ) : emp.status === "Sending" ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-800 font-label-sm text-label-sm rounded-DEFAULT font-semibold border border-amber-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                            Sending...
+                          </span>
+                        ) : emp.status === "Paid" ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-800 font-label-sm text-label-sm rounded-DEFAULT font-semibold border border-emerald-200">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
                             Paid
+                          </span>
+                        ) : emp.status === "PDF Ready" ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-800 font-label-sm text-label-sm rounded-DEFAULT font-semibold border border-blue-200">
+                            <span className="material-symbols-outlined text-[14px]">picture_as_pdf</span>
+                            PDF Ready
                           </span>
                         ) : emp.status === "Ready" ? (
                           <span className="inline-flex items-center gap-1 px-2 py-1 bg-surface-variant text-on-surface-variant font-label-sm text-label-sm rounded-DEFAULT">
@@ -417,27 +563,57 @@ function ReviewPayrollContent() {
         <div className="flex items-center gap-3">
           <button
             onClick={handleGeneratePdfs}
-            disabled={selectedIds.length === 0 || isLoading || isGeneratingPdfs}
+            disabled={selectedIds.length === 0 || isLoading || isGeneratingPdfs || arePdfsGenerated}
             className="flex items-center justify-center gap-1.5 bg-secondary-container text-on-secondary-container border border-outline-variant font-label-md text-label-md px-4 py-2.5 rounded-full hover:opacity-90 transition-opacity whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            PDFs
-            <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
+            {arePdfsGenerated ? "PDFs Ready ✓" : "PDFs"}
+            <span className="material-symbols-outlined text-[16px]">
+              {arePdfsGenerated ? "check_circle" : "picture_as_pdf"}
+            </span>
           </button>
 
-          <button
-            onClick={handleDisbursePayouts}
-            disabled={selectedIds.length === 0 || isLoading || isDisbursingPayouts}
-            className="flex items-center justify-center gap-1.5 bg-primary text-on-primary font-label-md text-label-md px-5 py-2.5 rounded-full hover:bg-primary/90 transition-colors shadow-sm whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
-          >
-            {isDisbursingPayouts ? "Disbursing..." : "Disburse Payouts"}
-            <span className="material-symbols-outlined text-[18px]">payments</span>
-          </button>
+          {allSelectedDelivered ? (
+            <button
+              disabled
+              className="flex items-center justify-center gap-1.5 bg-emerald-800 text-white font-label-md text-label-md px-5 py-2.5 rounded-full shadow-sm whitespace-nowrap opacity-90 cursor-not-allowed font-semibold"
+            >
+              Salary Slips Sent ✓
+              <span className="material-symbols-outlined text-[18px]">done_all</span>
+            </button>
+          ) : isAnyWhatsappPending ? (
+            <button
+              disabled
+              className="flex items-center justify-center gap-1.5 bg-amber-700 text-white font-label-md text-label-md px-5 py-2.5 rounded-full shadow-sm whitespace-nowrap opacity-90 cursor-not-allowed font-semibold"
+            >
+              Delivering Slips...
+              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block"></span>
+            </button>
+          ) : allSelectedPaid ? (
+            <button
+              onClick={handleDispatchSalarySlips}
+              disabled={selectedIds.length === 0 || isLoading || isDispatchingSlips}
+              className="flex items-center justify-center gap-1.5 bg-emerald-700 text-white font-label-md text-label-md px-5 py-2.5 rounded-full hover:bg-emerald-800 transition-colors shadow-sm whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+            >
+              {isDispatchingSlips ? "Sending Slips..." : "Send Salary Slips"}
+              <span className="material-symbols-outlined text-[18px]">send</span>
+            </button>
+          ) : (
+            <button
+              onClick={handleDisbursePayouts}
+              disabled={selectedIds.length === 0 || isLoading || isDisbursingPayouts}
+              className="flex items-center justify-center gap-1.5 bg-primary text-on-primary font-label-md text-label-md px-5 py-2.5 rounded-full hover:bg-primary/90 transition-colors shadow-sm whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+            >
+              {isDisbursingPayouts ? "Disbursing..." : "Disburse Payouts"}
+              <span className="material-symbols-outlined text-[18px]">payments</span>
+            </button>
+          )}
         </div>
       </div>
-
     </main>
   );
 }
+
+
 
 export default function ReviewPayrollPage() {
   return (

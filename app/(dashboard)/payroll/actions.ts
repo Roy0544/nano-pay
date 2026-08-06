@@ -469,13 +469,27 @@ export async function getPayrollRunDetailsAction(payrollRunId: string) {
     const account = String(emp.bank_account_number || "");
     const maskedAccount = account.length >= 4 ? `•••• ${account.slice(-4)}` : account || "N/A";
 
-    let uiStatus: "Ready" | "Review Needed" | "Paid" =
+    const whatsappStatus = ps.whatsapp_status || ps.whatsapp_delivery_status || (ps.status === "dispatched" ? "delivered" : null);
+
+    let uiStatus: "Ready" | "Review Needed" | "PDF Ready" | "Paid" | "Sending" | "Delivered" =
       !ps.employee_id || ps.status === "failed" || ps.status === "review_needed"
         ? "Review Needed"
         : "Ready";
 
-    if (ps.status === "paid") {
+    if (
+      ps.status === "dispatched" ||
+      ps.status === "delivered" ||
+      ps.status === "sent" ||
+      whatsappStatus === "delivered" ||
+      whatsappStatus === "sent"
+    ) {
+      uiStatus = "Delivered";
+    } else if (whatsappStatus === "pending") {
+      uiStatus = "Sending";
+    } else if (ps.status === "paid") {
       uiStatus = "Paid";
+    } else if (ps.status === "pdf_generated") {
+      uiStatus = "PDF Ready";
     }
 
     return {
@@ -489,9 +503,11 @@ export async function getPayrollRunDetailsAction(payrollRunId: string) {
       netPay: Number(ps.net_pay || 0),
       netPayText: `₹ ${Number(ps.net_pay || 0).toLocaleString("en-IN")}`,
       status: uiStatus,
+      whatsappStatus,
       paymentRef: ps.payment_ref || null,
       paidAt: ps.paid_at || null,
     };
+
 
   });
 
@@ -630,33 +646,38 @@ export async function getPayslipSignedUrlAction(payrollRunId: string, payslipId:
   const adminSupabase = createAdminClient(supabaseUrl, serviceKey);
 
   const filePath = `${payrollRunId}/${payslipId}.pdf`;
+  console.log(`🔍 [getPayslipSignedUrlAction] Attempting signed URL for path: "${filePath}" in bucket "payslips"`);
 
-  // 1. Verify file exists in bucket first
-  const { data: fileList, error: listError } = await adminSupabase.storage
-    .from("payslips")
-    .list(payrollRunId, { search: `${payslipId}.pdf` });
-
-  const exists = fileList && fileList.some((f) => f.name === `${payslipId}.pdf`);
-
-  if (!exists) {
-    console.log(`⚠️ [Storage Check] File "${filePath}" not found in bucket 'payslips'. (Found: ${fileList?.length || 0} files)`);
-    return {
-      error: "PDF payslip has not been generated yet. Please click 'Generate & Save PDFs (Inngest)' first and wait a few seconds for processing to finish.",
-      signedUrl: null,
-    };
-  }
-
-  // 2. Generate signed URL
+  // Attempt to generate the signed URL directly — if the file doesn't exist,
+  // Supabase will return an error without needing a separate .list() check.
   const { data, error } = await adminSupabase.storage
     .from("payslips")
     .createSignedUrl(filePath, 60 * 60 * 24); // 24 hours
 
   if (error || !data?.signedUrl) {
-    return { error: error?.message || "Failed to generate signed URL for PDF", signedUrl: null };
+    // File is likely missing — run a list() to log what IS in the folder for debugging
+    const { data: fileList, error: listError } = await adminSupabase.storage
+      .from("payslips")
+      .list(payrollRunId);
+
+    console.error(
+      `❌ [getPayslipSignedUrlAction] createSignedUrl failed for "${filePath}": ${error?.message}.` +
+        ` Files found in folder "${payrollRunId}": ${
+          listError ? `[list error: ${listError.message}]` : JSON.stringify(fileList?.map((f) => f.name))
+        }`
+    );
+
+    return {
+      error:
+        "PDF payslip has not been generated yet. Please click 'Generate & Save PDFs' first and wait a few seconds for processing to finish.",
+      signedUrl: null,
+    };
   }
 
+  console.log(`✅ [getPayslipSignedUrlAction] Signed URL generated for "${filePath}"`);
   return { error: null, signedUrl: data.signedUrl };
 }
+
 
 export async function triggerBulkPayoutAction(payrollRunId: string, selectedPayslipIds?: string[]) {
   const supabase = await createClient();
@@ -701,6 +722,139 @@ export async function triggerBulkPayoutAction(payrollRunId: string, selectedPays
     return { success: false, error: err.message || "Failed to trigger bulk payout" };
   }
 }
+
+export async function triggerDispatchSlipsAction(payrollRunId: string, selectedPayslipIds?: string[]) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    return { success: false, error: "Unauthorized access" };
+  }
+
+  const { inngest } = await import("@/lib/inngest/client");
+
+  try {
+    console.log(`🚀 [Inngest Trigger] Dispatching 'payroll/dispatch_slips.requested' for runId: ${payrollRunId}`);
+    const sendResult = await inngest.send({
+      name: "payroll/dispatch_slips.requested",
+      data: {
+        runId: payrollRunId,
+        selectedPayslipIds: selectedPayslipIds || [],
+        triggeredBy: user.id,
+      },
+    });
+    console.log("✅ [Inngest Trigger] Dispatch event sent successfully:", sendResult);
+
+    // Update status to 'Dispatching Salary Slips'
+    await supabase
+      .from("payroll_runs")
+      .update({ status: "Dispatching Salary Slips" })
+      .eq("id", payrollRunId);
+
+    return {
+      success: true,
+      message: "⚡ Salary slips dispatch started via WhatsApp/Telegram in background!",
+    };
+  } catch (err: any) {
+    console.error("Failed to trigger Inngest dispatch event:", err);
+    return { success: false, error: err.message || "Failed to trigger slip dispatch" };
+  }
+}
+
+export async function getDashboardStatsAction() {
+
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    return {
+      error: "Unauthorized access",
+      totalPaidThisMonth: 0,
+      pendingPayouts: 0,
+      activeEmployees: 0,
+      recentActivity: [],
+    };
+  }
+
+  // 1. Fetch total active employees count
+  const { count: activeEmployeesCount } = await supabase
+    .from("employees")
+    .select("*", { count: "exact", head: true });
+
+  // 2. Fetch all payslips to calculate paid & pending metrics
+  const { data: payslips } = await supabase
+    .from("payslips")
+    .select("net_pay, status");
+
+  let totalPaidThisMonth = 0;
+  let pendingPayouts = 0;
+
+  if (payslips) {
+    for (const ps of payslips) {
+      const amount = Number(ps.net_pay || 0);
+      const isPaid =
+        ps.status === "paid" ||
+        ps.status === "dispatched" ||
+        ps.status === "delivered" ||
+        ps.status === "sent";
+
+      if (isPaid) {
+        totalPaidThisMonth += amount;
+      } else {
+        pendingPayouts += amount;
+      }
+    }
+  }
+
+  // 3. Fetch recent payroll runs (top 5)
+  const { data: runs } = await supabase
+    .from("payroll_runs")
+    .select("id, month, year, status, created_at, payslips(net_pay)")
+    .order("created_at", { ascending: false })
+    .limit(5);
+
+  const recentActivity = (runs || []).map((run: any) => {
+    const monthName =
+      typeof run.month === "number" || !isNaN(Number(run.month))
+        ? MONTH_NAMES[Number(run.month)] || String(run.month)
+        : String(run.month);
+
+    const runPayslips = run.payslips || [];
+    const totalAmount = runPayslips.reduce(
+      (sum: number, p: any) => sum + Number(p.net_pay || 0),
+      0
+    );
+
+    return {
+      id: run.id,
+      month: `${monthName} ${run.year}`,
+      amount: `₹ ${totalAmount.toLocaleString("en-IN")}`,
+      rawAmount: totalAmount,
+      status: run.status || "Draft",
+      payslipCount: runPayslips.length,
+      createdAt: run.created_at,
+    };
+  });
+
+  return {
+    error: null,
+    totalPaidThisMonth,
+    pendingPayouts,
+    activeEmployees: activeEmployeesCount || 0,
+    recentActivity,
+  };
+}
+
+
+
 
 
 
