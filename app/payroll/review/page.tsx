@@ -6,6 +6,7 @@ import {
   getPayrollRunDetailsAction,
   triggerGeneratePdfsAction,
   getPayslipSignedUrlAction,
+  triggerBulkPayoutAction,
 } from "@/app/(dashboard)/payroll/actions";
 
 interface PayrollEmployee {
@@ -17,7 +18,8 @@ interface PayrollEmployee {
   daysWorked: string;
   netPay: number;
   netPayText: string;
-  status: "Ready" | "Review Needed";
+  status: "Ready" | "Review Needed" | "Paid";
+  paymentRef?: string | null;
 }
 
 function ReviewPayrollContent() {
@@ -35,6 +37,10 @@ function ReviewPayrollContent() {
   const [isGeneratingPdfs, setIsGeneratingPdfs] = useState(false);
   const [pdfSuccessMessage, setPdfSuccessMessage] = useState<string | null>(null);
   const [loadingPdfId, setLoadingPdfId] = useState<string | null>(null);
+
+  // Bulk Payout State
+  const [isDisbursingPayouts, setIsDisbursingPayouts] = useState(false);
+  const [payoutSuccessMessage, setPayoutSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!runId) {
@@ -61,9 +67,9 @@ function ReviewPayrollContent() {
         const payslips = (res.payslips || []) as PayrollEmployee[];
         setEmployees(payslips);
 
-        // Pre-select all Ready payslips
+        // Pre-select all Ready & unpaid payslips
         const readyIds = payslips
-          .filter((p) => p.status === "Ready")
+          .filter((p) => p.status === "Ready" || p.status === "Paid")
           .map((p) => p.id);
         setSelectedIds(readyIds);
       } catch (err: any) {
@@ -119,6 +125,29 @@ function ReviewPayrollContent() {
     }
   };
 
+  // Trigger Inngest Bulk Payment Disbursement
+  const handleDisbursePayouts = async () => {
+    if (!runId || selectedIds.length === 0) return;
+    setIsDisbursingPayouts(true);
+    setPayoutSuccessMessage(null);
+    setFetchError(null);
+
+    try {
+      const res = await triggerBulkPayoutAction(runId, selectedIds);
+      if (res.success) {
+        setPayoutSuccessMessage(
+          `⚡ Bulk payment event sent to Inngest! Disbursing ₹${totalPayout.toLocaleString("en-IN")} across ${selectedIds.length} employees.`
+        );
+      } else {
+        setFetchError(res.error || "Failed to trigger bulk payout");
+      }
+    } catch (err: any) {
+      setFetchError(err.message || "An unexpected error occurred during payout disburse");
+    } finally {
+      setIsDisbursingPayouts(false);
+    }
+  };
+
   // View PDF via 24-hr Signed URL
   const handleViewPdf = async (payslipId: string) => {
     if (!runId) return;
@@ -136,6 +165,7 @@ function ReviewPayrollContent() {
       setLoadingPdfId(null);
     }
   };
+
 
   return (
     <main className="flex-1 w-full max-w-container-max mx-auto px-gutter py-xl pb-32">
@@ -160,34 +190,67 @@ function ReviewPayrollContent() {
             </span>
           </div>
 
-          {/* Generate PDFs Action Button */}
-          <button
-            onClick={handleGeneratePdfs}
-            disabled={isGeneratingPdfs || employees.length === 0}
-            className="flex items-center gap-2 px-4 py-2 bg-secondary-container text-on-secondary-container font-label-md text-label-md rounded-lg hover:opacity-90 transition-opacity border border-outline-variant cursor-pointer disabled:opacity-50"
-          >
-            {isGeneratingPdfs ? (
-              <>
-                <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin inline-block"></span>
-                Starting Inngest...
-              </>
-            ) : (
-              <>
-                <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
-                Generate & Save PDFs (Inngest)
-              </>
-            )}
-          </button>
+          <div className="flex items-center gap-sm">
+            {/* Generate PDFs Action Button */}
+            <button
+              onClick={handleGeneratePdfs}
+              disabled={isGeneratingPdfs || employees.length === 0}
+              className="flex items-center gap-2 px-4 py-2 bg-secondary-container text-on-secondary-container font-label-md text-label-md rounded-lg hover:opacity-90 transition-opacity border border-outline-variant cursor-pointer disabled:opacity-50"
+            >
+              {isGeneratingPdfs ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin inline-block"></span>
+                  Starting Inngest...
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
+                  Generate & Save PDFs
+                </>
+              )}
+            </button>
+
+            {/* Bulk Payout Action Button */}
+            <button
+              onClick={handleDisbursePayouts}
+              disabled={isDisbursingPayouts || selectedIds.length === 0}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary font-label-md text-label-md rounded-lg hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
+            >
+              {isDisbursingPayouts ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-on-primary border-t-transparent rounded-full animate-spin inline-block"></span>
+                  Disbursing via Inngest...
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[18px]">payments</span>
+                  Disburse Payouts ({selectedIds.length})
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Success Notification Banner */}
+      {/* Success Notification Banners */}
       {pdfSuccessMessage && (
         <div className="p-md mb-md bg-green-50 border border-green-200 text-green-800 rounded-xl text-sm font-medium flex items-center justify-between">
           <span>{pdfSuccessMessage}</span>
           <button
             onClick={() => setPdfSuccessMessage(null)}
             className="text-green-600 hover:text-green-900 font-bold ml-4"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {payoutSuccessMessage && (
+        <div className="p-md mb-md bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl text-sm font-medium flex items-center justify-between">
+          <span>{payoutSuccessMessage}</span>
+          <button
+            onClick={() => setPayoutSuccessMessage(null)}
+            className="text-emerald-700 hover:text-emerald-950 font-bold ml-4"
           >
             ✕
           </button>
@@ -281,8 +344,13 @@ function ReviewPayrollContent() {
                         <div className="font-body-sm text-body-sm text-on-surface font-medium">
                           Acct: {emp.account}
                         </div>
-                        <div className="font-label-sm text-label-sm text-on-surface-variant">
+                        <div className="font-label-sm text-label-sm text-on-surface-variant flex items-center gap-1">
                           IFSC: {emp.ifsc}
+                          {emp.paymentRef && (
+                            <span className="ml-1 px-1.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-mono rounded">
+                              Ref: {emp.paymentRef}
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="py-md px-md font-body-sm text-body-sm text-on-surface">
@@ -311,7 +379,12 @@ function ReviewPayrollContent() {
                       </td>
 
                       <td className="py-md px-md">
-                        {emp.status === "Ready" ? (
+                        {emp.status === "Paid" ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-100 text-emerald-800 font-label-sm text-label-sm rounded-DEFAULT font-semibold border border-emerald-300">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                            Paid
+                          </span>
+                        ) : emp.status === "Ready" ? (
                           <span className="inline-flex items-center gap-1 px-2 py-1 bg-surface-variant text-on-surface-variant font-label-sm text-label-sm rounded-DEFAULT">
                             <span className="w-1.5 h-1.5 rounded-full bg-outline"></span>
                             Ready
@@ -332,23 +405,36 @@ function ReviewPayrollContent() {
         </div>
       )}
 
+
       {/* Floating Action Bar */}
-      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 backdrop-blur-md bg-surface-container-lowest/90 border border-outline-variant shadow-[0_10px_15px_-3px_rgba(0,0,0,0.1),0_4px_6px_-2px_rgba(0,0,0,0.05)] rounded-full px-8 py-4 flex items-center justify-between gap-8 z-50 w-[90%] max-w-3xl">
+      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 backdrop-blur-md bg-surface-container-lowest/90 border border-outline-variant shadow-[0_10px_15px_-3px_rgba(0,0,0,0.1),0_4px_6px_-2px_rgba(0,0,0,0.05)] rounded-full px-6 py-3.5 flex items-center justify-between gap-6 z-50 w-[92%] max-w-4xl">
         <div className="font-body-md text-body-md text-on-surface-variant whitespace-nowrap">
-          {selectedIds.length} Employees Selected
+          <span className="font-semibold text-on-surface">{selectedIds.length}</span> Selected
         </div>
         <div className="font-h3 text-h3 text-on-surface whitespace-nowrap text-center flex-1 font-semibold text-lg md:text-xl">
-          Total Payout: ₹ {totalPayout.toLocaleString("en-IN")}
+          Total: ₹ {totalPayout.toLocaleString("en-IN")}
         </div>
-        <button
-          onClick={handleGeneratePdfs}
-          disabled={selectedIds.length === 0 || isLoading || isGeneratingPdfs}
-          className="flex items-center justify-center gap-sm bg-primary text-on-primary font-label-md text-label-md px-6 py-3 rounded-full hover:bg-primary/90 transition-colors shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)] whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Generate & Save PDFs (Inngest)
-          <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleGeneratePdfs}
+            disabled={selectedIds.length === 0 || isLoading || isGeneratingPdfs}
+            className="flex items-center justify-center gap-1.5 bg-secondary-container text-on-secondary-container border border-outline-variant font-label-md text-label-md px-4 py-2.5 rounded-full hover:opacity-90 transition-opacity whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            PDFs
+            <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
+          </button>
+
+          <button
+            onClick={handleDisbursePayouts}
+            disabled={selectedIds.length === 0 || isLoading || isDisbursingPayouts}
+            className="flex items-center justify-center gap-1.5 bg-primary text-on-primary font-label-md text-label-md px-5 py-2.5 rounded-full hover:bg-primary/90 transition-colors shadow-sm whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+          >
+            {isDisbursingPayouts ? "Disbursing..." : "Disburse Payouts"}
+            <span className="material-symbols-outlined text-[18px]">payments</span>
+          </button>
+        </div>
       </div>
+
     </main>
   );
 }

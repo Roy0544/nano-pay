@@ -469,10 +469,14 @@ export async function getPayrollRunDetailsAction(payrollRunId: string) {
     const account = String(emp.bank_account_number || "");
     const maskedAccount = account.length >= 4 ? `•••• ${account.slice(-4)}` : account || "N/A";
 
-    const uiStatus =
+    let uiStatus: "Ready" | "Review Needed" | "Paid" =
       !ps.employee_id || ps.status === "failed" || ps.status === "review_needed"
         ? "Review Needed"
         : "Ready";
+
+    if (ps.status === "paid") {
+      uiStatus = "Paid";
+    }
 
     return {
       id: String(ps.id),
@@ -485,7 +489,10 @@ export async function getPayrollRunDetailsAction(payrollRunId: string) {
       netPay: Number(ps.net_pay || 0),
       netPayText: `₹ ${Number(ps.net_pay || 0).toLocaleString("en-IN")}`,
       status: uiStatus,
+      paymentRef: ps.payment_ref || null,
+      paidAt: ps.paid_at || null,
     };
+
   });
 
   return { error: null, run: formattedRun, payslips: formattedPayslips };
@@ -650,5 +657,50 @@ export async function getPayslipSignedUrlAction(payrollRunId: string, payslipId:
 
   return { error: null, signedUrl: data.signedUrl };
 }
+
+export async function triggerBulkPayoutAction(payrollRunId: string, selectedPayslipIds?: string[]) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    return { success: false, error: "Unauthorized access" };
+  }
+
+  const { inngest } = await import("@/lib/inngest/client");
+
+  try {
+    console.log(`🚀 [Inngest Trigger] Dispatching 'payroll/bulk_payout.requested' for runId: ${payrollRunId}`);
+    const sendResult = await inngest.send({
+      name: "payroll/bulk_payout.requested",
+      data: {
+        runId: payrollRunId,
+        selectedPayslipIds: selectedPayslipIds || [],
+        triggeredBy: user.id,
+      },
+    });
+    console.log("✅ [Inngest Trigger] Bulk payout event sent successfully:", sendResult);
+
+    // Update status to 'Processing Payouts'
+    await supabase
+      .from("payroll_runs")
+      .update({ status: "Processing Payouts" })
+      .eq("id", payrollRunId);
+
+    revalidatePath("/payroll/review");
+
+    return {
+      success: true,
+      message: "⚡ Bulk payment disbursement started in background via Inngest!",
+    };
+  } catch (err: any) {
+    console.error("Failed to trigger Inngest bulk payout event:", err);
+    return { success: false, error: err.message || "Failed to trigger bulk payout" };
+  }
+}
+
 
 
